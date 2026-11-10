@@ -24,7 +24,9 @@ export function run(mode, repo, template, configs, api) {
   const config = configs[repo]; const desired = desiredRuleset(template,config);
   const endpoint = 'repos/' + repo + '/rulesets/' + config.rulesetId;
   const current = writable(api('GET',endpoint));
-  if (current.target !== 'branch' || !equal(current.conditions,template.conditions)) throw new Error('Refusing to replace a ruleset outside main');
+  const defaultAlias = equal(current.conditions,{ref_name:{include:['~DEFAULT_BRANCH'],exclude:[]}});
+  if (defaultAlias && api('GET','repos/'+repo).default_branch === 'main') desired.conditions = structuredClone(current.conditions);
+  if (current.target !== 'branch' || !equal(current.conditions,desired.conditions)) throw new Error('Refusing to replace a ruleset outside main');
   const managedTypes = new Set(template.rules.map(rule => rule.type));
   desired.rules.push(...current.rules.filter(rule => !managedTypes.has(rule.type)));
   const changed = !equal(current,desired);
