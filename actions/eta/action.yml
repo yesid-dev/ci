@@ -1,0 +1,18 @@
+name: Job ETA
+description: Expected finish from successful main jobs; background warning at p90
+inputs:
+  token:
+    description: GitHub token with actions read permission
+    required: true
+  job-name:
+    description: Exact unique API job display name, including matrix values
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        ETA_JOB_NAME: ${{ inputs.job-name }}
+        KIT_ACTION_PATH: ${{ github.action_path }}
+      run: node "$KIT_ACTION_PATH/eta.mjs"

@@ -1,0 +1,31 @@
+name: Await artifact
+description: Poll this run for a named artifact with a hard deadline
+inputs:
+  name:
+    description: Exact artifact name
+    required: true
+  token:
+    description: GitHub token with actions read permission
+    required: true
+  timeout-seconds:
+    description: Hard wait limit, 1 to 3600 seconds
+    default: '120'
+  interval-seconds:
+    description: Poll interval, 1 to 60 seconds
+    default: '5'
+outputs:
+  artifact-id:
+    description: Artifact ID for download-artifact
+    value: ${{ steps.wait.outputs.artifact-id }}
+runs:
+  using: composite
+  steps:
+    - id: wait
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        ARTIFACT_NAME: ${{ inputs.name }}
+        ARTIFACT_TIMEOUT: ${{ inputs.timeout-seconds }}
+        ARTIFACT_INTERVAL: ${{ inputs.interval-seconds }}
+        KIT_ACTION_PATH: ${{ github.action_path }}
+      run: node "$KIT_ACTION_PATH/await.mjs"

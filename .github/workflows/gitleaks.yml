@@ -1,0 +1,78 @@
+name: gitleaks
+on:
+  workflow_call:
+    inputs:
+      full-history:
+        description: Scan all history in addition to the current tree
+        type: boolean
+        default: false
+      config:
+        description: Optional repository gitleaks config path
+        type: string
+        default: ''
+permissions:
+  contents: read
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned gitleaks
+        shell: bash
+        env:
+          VERSION: '8.30.1'
+          SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" -o "$archive"
+          printf '%s  %s\n' "$SHA256" "$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          test "$("$RUNNER_TEMP/gitleaks-bin/gitleaks" version)" = "$VERSION"
+      - name: Scan tree
+        shell: bash
+        env:
+          CONFIG: ${{ inputs.config }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" dir --redact "${args[@]}" .
+      - name: Scan event range or full history
+        if: ${{ success() || failure() }}
+        shell: bash
+        env:
+          CONFIG: ${{ inputs.config }}
+          FULL_HISTORY: ${{ inputs.full-history }}
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          GROUP_BASE: ${{ github.event.merge_group.base_sha }}
+          BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$CONFIG" ]; then args+=(--config "$CONFIG"); fi
+          if [ "$FULL_HISTORY" != true ]; then
+            case "$EVENT" in
+              pull_request) base="$PR_BASE" ;;
+              merge_group) base="$GROUP_BASE" ;;
+              push) base="$BEFORE" ;;
+              schedule|workflow_dispatch) base='' ;;
+              *) echo "Unsupported event: $EVENT" >&2; exit 1 ;;
+            esac
+            if [ -n "$base" ] && [ "$base" != 0000000000000000000000000000000000000000 ]; then
+              if git cat-file -e "$base^{commit}"; then
+                args+=(--log-opts "$base..$HEAD")
+              elif [ "$EVENT" != push ]; then
+                echo 'Missing event base commit' >&2; exit 1
+              fi
+            fi
+          fi
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" detect --redact "${args[@]}"
