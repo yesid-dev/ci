@@ -7,14 +7,20 @@ Run `npm run check` and `npm test`; there are no package dependencies.
 Pin every external use to a reviewed commit SHA. `v1` identifies the first
 verified release; use its resolved SHA in consumers.
 
-- `actions/eta`: pass `token`, the exact unique `job-name` from the jobs API
-  (include matrix values), and a Bash `command`. Grant `actions: read`. The
+- `actions/eta`: pass `token`, `check-run-id: ${{ job.check_run_id }}`, the exact
+  `job-name` from the jobs API (include matrix values), and a Bash `command`.
+  Grant `actions: read`. The ID is verified against the current run and attempt;
+  API job status is never used for identity. The
   command runs with errexit and pipefail and its exit code is preserved.
   The summary reports p50/p90 finish times measured from job start, using up to
   20 successful main jobs in the same workflow and owning repository, excluding
   PR events. Linear interpolated percentiles;
   failed, skipped and invalid samples are excluded. No history is reported as
-  unavailable. While the command runs, the active step warns once if job
+  unavailable. The command starts before telemetry requests, and metadata work
+  is aborted when it finishes. Missing identity/history, API failures or missing
+  start times produce `Expected finish: unavailable (<reason>)`; they cannot
+  stop the command or change its exit code. Metadata has a 10-second deadline
+  and no consistency retries. While the command runs, the active step warns once if job
   elapsed time passes p90. Wrap the long part of the job in this action so the
   warning remains live; it cannot observe later, separate workflow steps.
 - `actions/await-artifact`: grant `actions: read`; pass `token`, `name`, and
