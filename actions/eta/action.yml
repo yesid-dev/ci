@@ -1,11 +1,14 @@
 name: Job ETA
-description: Expected finish from successful main jobs; background warning at p90
+description: Run a long command with expected finish and a live p90 warning
 inputs:
   token:
     description: GitHub token with actions read permission
     required: true
   job-name:
     description: Exact unique API job display name, including matrix values
+    required: true
+  command:
+    description: Bash command to execute while monitoring elapsed job time
     required: true
 runs:
   using: composite
@@ -14,5 +17,6 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         ETA_JOB_NAME: ${{ inputs.job-name }}
+        ETA_COMMAND: ${{ inputs.command }}
         KIT_ACTION_PATH: ${{ github.action_path }}
-      run: node "$KIT_ACTION_PATH/eta.mjs"
+      run: ETA_BASH="$BASH" node "$KIT_ACTION_PATH/eta.mjs"

@@ -7,13 +7,15 @@ Run `npm run check` and `npm test`; there are no package dependencies.
 Pin every external use to a reviewed commit SHA. `v1` identifies the first
 verified release; use its resolved SHA in consumers.
 
-- `actions/eta`: call near the start of a long job with `token` and the exact,
-  unique `job-name` from the jobs API (include matrix values). Grant `actions: read`.
-  The summary reports p50/p90 finish times, measured from job start, using up to
+- `actions/eta`: pass `token`, the exact unique `job-name` from the jobs API
+  (include matrix values), and a Bash `command`. Grant `actions: read`. The
+  command runs with errexit and pipefail and its exit code is preserved.
+  The summary reports p50/p90 finish times measured from job start, using up to
   20 successful main jobs in the same workflow. Linear interpolated percentiles;
   failed, skipped and invalid samples are excluded. No history is reported as
-  unavailable. A background process checks the job at p90 and emits a warning
-  if it is still running; runner cleanup ends it when the job ends.
+  unavailable. While the command runs, the active step warns once if job
+  elapsed time passes p90. Wrap the long part of the job in this action so the
+  warning remains live; it cannot observe later, separate workflow steps.
 - `actions/await-artifact`: grant `actions: read`; pass `token`, `name`, and
   `timeout-seconds` (default 120, maximum 3600). Polls only this run, across pages,
   excluding expired artifacts. Outputs `artifact-id` for a later download step.

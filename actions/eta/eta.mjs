@@ -1,41 +1,63 @@
 import { appendFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { api, pages } from '../api.mjs';
 import { percentile, durations } from './stats.mjs';
-const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function main() {
-  if(process.argv[2]==='monitor') {
-    const [jobId,deadline]=process.argv.slice(3).map(Number);
-    while(Date.now()<deadline) await sleep(Math.min(15000,deadline-Date.now()));
-    const job=await api('actions/jobs/'+jobId);
-    if(job.status!=='completed') console.log('::warning title=Job exceeds historical p90::Expected finish p90 has passed for job '+jobId);
-    return;
-  }
-  const name=process.env.ETA_JOB_NAME;
-  if(!name) throw new Error('job-name must match the API job display name, including matrix values');
-  const currentRun=await api('actions/runs/'+process.env.GITHUB_RUN_ID);
-  const current=(await pages('actions/runs/'+currentRun.id+'/jobs?filter=latest','jobs')).filter(j=>j.name===name && j.status==='in_progress');
-  if(current.length!==1) throw new Error('Expected exactly one running job named '+name);
-  const workflow=currentRun.workflow_id;
+
+export function runCommand({executable,args,deadline,warn=()=>console.log('::warning title=Job exceeds historical p90::Current elapsed time exceeds p90')}) {
+  return new Promise((resolve,reject)=>{
+    let timer;
+    const child=spawn(executable,args,{stdio:'inherit'});
+    if(deadline!==null && deadline!==undefined) {
+      const remaining=deadline-Date.now();
+      if(remaining<=0)warn();
+      else timer=setTimeout(warn,remaining);
+    }
+    child.once('error',error=>{clearTimeout(timer);reject(error);});
+    child.once('exit',(code,signal)=>{
+      clearTimeout(timer);
+      if(signal)reject(new Error('Monitored command terminated by '+signal));
+      else resolve(code);
+    });
+  });
+}
+
+export async function samplesFor(workflow,name,currentId,request=api) {
   const samples=[];
   for(let page=1;samples.length<20;page++) {
-    const history=await api('actions/workflows/'+workflow+'/runs?branch=main&status=completed&per_page=100&page='+page);
+    const history=await request('actions/workflows/'+workflow+'/runs?branch=main&status=completed&per_page=100&page='+page);
     for(const run of history.workflow_runs) {
-    if(run.id===currentRun.id)continue;
-    const jobs=await pages('actions/runs/'+run.id+'/jobs?filter=latest','jobs');
-    const matches=jobs.filter(j=>j.name===name);
-    if(matches.length>1)throw new Error('Ambiguous historical job name '+name);
-    samples.push(...durations(matches)); if(samples.length===20)break;
+      if(run.id===currentId)continue;
+      const jobs=await pages('actions/runs/'+run.id+'/jobs?filter=latest','jobs',request);
+      const matches=jobs.filter(j=>j.name===name);
+      if(matches.length>1)throw new Error('Ambiguous historical job name '+name);
+      samples.push(...durations(matches));
+      if(samples.length===20)break;
     }
     if(history.workflow_runs.length<100)break;
   }
-  if(!samples.length) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Expected finish: unavailable (no successful main job samples).\n'); return;
-  }
-  const start=Date.parse(current[0].started_at); const p50=percentile(samples,.5); const p90=percentile(samples,.9);
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Expected finish: p50 '+new Date(start+p50).toISOString()+'; p90 '+new Date(start+p90).toISOString()+' ('+samples.length+' successful main jobs).\n');
-  if(Date.now()>start+p90)console.log('::warning title=Job exceeds historical p90::Current elapsed time exceeds p90');
-  else {const child=spawn(process.execPath,[fileURLToPath(import.meta.url),'monitor',String(current[0].id),String(start+p90)],{detached:true,stdio:['ignore',1,2]});child.unref();}
+  return samples;
 }
-main().catch(error=>{console.error(error.message);process.exitCode=1;});
+
+async function main() {
+  const name=process.env.ETA_JOB_NAME;
+  if(!name || !process.env.ETA_COMMAND || !process.env.ETA_BASH) throw new Error('Require job-name, command and Bash executable');
+  const currentRun=await api('actions/runs/'+process.env.GITHUB_RUN_ID);
+  const current=(await pages('actions/runs/'+currentRun.id+'/jobs?filter=latest','jobs')).filter(j=>j.name===name && j.status==='in_progress');
+  if(current.length!==1)throw new Error('Expected exactly one running job named '+name);
+  const samples=await samplesFor(currentRun.workflow_id,name,currentRun.id);
+  let deadline=null;
+  if(!samples.length) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Expected finish: unavailable (no successful main job samples).\n');
+  } else {
+    const start=Date.parse(current[0].started_at);
+    if(!Number.isFinite(start))throw new Error('Invalid current job start time');
+    const p50=percentile(samples,.5); const p90=percentile(samples,.9);
+    deadline=start+p90;
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Expected finish: p50 '+new Date(start+p50).toISOString()+'; p90 '+new Date(deadline).toISOString()+' ('+samples.length+' successful main jobs).\n');
+  }
+  process.exitCode=await runCommand({executable:process.env.ETA_BASH,args:['--noprofile','--norc','-e','-o','pipefail','-c',process.env.ETA_COMMAND],deadline});
+}
+if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
+  main().catch(error=>{console.error(error.message);process.exitCode=1;});
+}
