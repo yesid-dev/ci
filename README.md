@@ -11,7 +11,8 @@ verified release; use its resolved SHA in consumers.
   (include matrix values), and a Bash `command`. Grant `actions: read`. The
   command runs with errexit and pipefail and its exit code is preserved.
   The summary reports p50/p90 finish times measured from job start, using up to
-  20 successful main jobs in the same workflow. Linear interpolated percentiles;
+  20 successful main jobs in the same workflow and owning repository, excluding
+  PR events. Linear interpolated percentiles;
   failed, skipped and invalid samples are excluded. No history is reported as
   unavailable. While the command runs, the active step warns once if job
   elapsed time passes p90. Wrap the long part of the job in this action so the

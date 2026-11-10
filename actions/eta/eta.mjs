@@ -22,12 +22,13 @@ export function runCommand({executable,args,deadline,warn=()=>console.log('::war
   });
 }
 
-export async function samplesFor(workflow,name,currentId,request=api) {
+export async function samplesFor(workflow,name,currentId,request=api,repository=process.env.GITHUB_REPOSITORY) {
+  if(!repository)throw new Error('Owning repository is required for ETA history');
   const samples=[];
   for(let page=1;samples.length<20;page++) {
     const history=await request('actions/workflows/'+workflow+'/runs?branch=main&status=completed&per_page=100&page='+page);
     for(const run of history.workflow_runs) {
-      if(run.id===currentId)continue;
+      if(run.id===currentId || run.head_branch!=='main' || run.head_repository?.full_name?.toLowerCase()!==repository.toLowerCase() || ['pull_request','pull_request_target'].includes(run.event))continue;
       const jobs=await pages('actions/runs/'+run.id+'/jobs?filter=latest','jobs',request);
       const matches=jobs.filter(j=>j.name===name);
       if(matches.length>1)throw new Error('Ambiguous historical job name '+name);
