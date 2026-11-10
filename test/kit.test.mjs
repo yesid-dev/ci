@@ -69,3 +69,22 @@ test('standard ruleset application preserves repository-specific rule types',()=
   assert.equal(result.changed,false);
   assert.deepEqual(result.desired.rules.find(r=>r.type==='code_scanning'),security);
 });
+
+test('default-branch alias is accepted only when the repository default is main',()=>{
+  const desired=desiredRuleset(template,config);
+  const alias={ref_name:{include:['~DEFAULT_BRANCH'],exclude:[]}};
+  let current={...desired,conditions:alias};
+  let defaultBranch='main';
+  const api=(method,endpoint,body)=>{
+    if(endpoint==='repos/org/repo')return {default_branch:defaultBranch};
+    if(method==='PUT')current=body;
+    return current;
+  };
+  const result=run('diff','org/repo',template,{'org/repo':config},api);
+  assert.equal(result.changed,false);assert.deepEqual(result.desired.conditions,alias);
+  current={...current,enforcement:'disabled'};
+  assert.equal(run('apply','org/repo',template,{'org/repo':config},api).changed,true);
+  assert.deepEqual(current.conditions,alias);
+  defaultBranch='develop';
+  assert.throws(()=>run('apply','org/repo',template,{'org/repo':config},api),/outside main/);
+});

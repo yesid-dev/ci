@@ -46,6 +46,7 @@ node scripts/rulesets.mjs apply yesid-dev/yesid.static-template
 readback. Existing rule types outside the standard template (such as code-scanning
 rules) are preserved. It requires a separately authorized administration token. It does not
 create rulesets or change tags, other repositories, or classic protections.
+The default-branch selector is accepted only after verifying the default is main.
 `plannedRequiredChecks` documents the static-template adoption's future
 `gitleaks` requirement and is deliberately ignored by apply. After the adoption
 is merged and the actual check context is verified, its owner can promote that

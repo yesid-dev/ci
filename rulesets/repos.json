@@ -97,5 +97,20 @@
     ],
     "checkTimeoutMinutes": 30,
     "seededAt": "2026-11-10T06:10:43Z"
+  },
+  "yesid-dev/ci": {
+    "rulesetId": 26921057,
+    "requiredChecks": [
+      {
+        "context": "test",
+        "integration_id": 15368
+      },
+      {
+        "context": "scan / gitleaks",
+        "integration_id": 15368
+      }
+    ],
+    "checkTimeoutMinutes": 15,
+    "seededAt": "2026-11-10T06:25:37Z"
   }
 }
