@@ -43,7 +43,8 @@ node scripts/rulesets.mjs apply yesid-dev/yesid.static-template
 ```
 
 `diff` only reads. `apply` updates the configured main ruleset and verifies API
-readback. It requires a separately authorized administration token. It does not
+readback. Existing rule types outside the standard template (such as code-scanning
+rules) are preserved. It requires a separately authorized administration token. It does not
 create rulesets or change tags, other repositories, or classic protections.
 `plannedRequiredChecks` documents the static-template adoption's future
 `gitleaks` requirement and is deliberately ignored by apply. After the adoption

@@ -25,6 +25,8 @@ export function run(mode, repo, template, configs, api) {
   const endpoint = 'repos/' + repo + '/rulesets/' + config.rulesetId;
   const current = writable(api('GET',endpoint));
   if (current.target !== 'branch' || !equal(current.conditions,template.conditions)) throw new Error('Refusing to replace a ruleset outside main');
+  const managedTypes = new Set(template.rules.map(rule => rule.type));
+  desired.rules.push(...current.rules.filter(rule => !managedTypes.has(rule.type)));
   const changed = !equal(current,desired);
   if (mode === 'apply' && changed) {
     api('PUT',endpoint,desired);

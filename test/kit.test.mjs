@@ -60,3 +60,12 @@ test('artifact API request is aborted at the hard deadline',async()=>{
   }}),{name:'TimeoutError'});
   assert.ok(Date.now()-started<2500);
 });
+
+test('standard ruleset application preserves repository-specific rule types',()=>{
+  const security={type:'code_scanning',parameters:{code_scanning_tools:[{tool:'CodeQL',security_alerts_threshold:'high_or_higher',alerts_threshold:'errors'}]}};
+  const desired=desiredRuleset(template,config);
+  const current={...desired,rules:[...desired.rules,security]};
+  const result=run('diff','org/repo',template,{'org/repo':config},()=>current);
+  assert.equal(result.changed,false);
+  assert.deepEqual(result.desired.rules.find(r=>r.type==='code_scanning'),security);
+});
