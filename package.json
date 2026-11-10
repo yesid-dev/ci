@@ -1,0 +1,12 @@
+{
+  "name": "@yesid/ci",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check scripts/rulesets.mjs && node --check actions/eta/eta.mjs && node --check actions/await-artifact/await.mjs"
+  }
+}

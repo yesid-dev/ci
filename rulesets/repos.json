@@ -1,0 +1,101 @@
+{
+  "yesid-dev/yesid.dev": {
+    "rulesetId": 15785309,
+    "requiredChecks": [
+      {
+        "context": "gitleaks",
+        "integration_id": 15368
+      },
+      {
+        "context": "ci",
+        "integration_id": 15368
+      },
+      {
+        "context": "test",
+        "integration_id": 15368
+      }
+    ],
+    "checkTimeoutMinutes": 45,
+    "seededAt": "2026-11-10T06:10:36Z"
+  },
+  "yesid-dev/transit": {
+    "rulesetId": 17834816,
+    "requiredChecks": [
+      {
+        "context": "gitleaks",
+        "integration_id": 15368
+      },
+      {
+        "context": "ci",
+        "integration_id": 15368
+      },
+      {
+        "context": "offline-tests",
+        "integration_id": 15368
+      },
+      {
+        "context": "alembic-single-head",
+        "integration_id": 15368
+      },
+      {
+        "context": "real-db-tests",
+        "integration_id": 15368
+      }
+    ],
+    "checkTimeoutMinutes": 60,
+    "seededAt": "2026-11-10T06:10:37Z"
+  },
+  "yesid-dev/yesid.login": {
+    "rulesetId": 26831607,
+    "requiredChecks": [
+      {
+        "context": "verify",
+        "integration_id": 15368
+      }
+    ],
+    "checkTimeoutMinutes": 15,
+    "seededAt": "2026-11-10T06:10:40Z"
+  },
+  "yesid-dev/yesid.static-template": {
+    "rulesetId": 26908008,
+    "requiredChecks": [
+      {
+        "context": "verify"
+      }
+    ],
+    "checkTimeoutMinutes": 15,
+    "seededAt": "2026-11-10T06:10:40Z",
+    "plannedRequiredChecks": [
+      {
+        "context": "gitleaks",
+        "integration_id": 15368
+      }
+    ]
+  },
+  "yesid-dev/yesid.content-contract": {
+    "rulesetId": 26915702,
+    "requiredChecks": [
+      {
+        "context": "check",
+        "integration_id": 15368
+      }
+    ],
+    "checkTimeoutMinutes": 15,
+    "seededAt": "2026-11-10T06:10:42Z"
+  },
+  "yesid-dev/yesid.design": {
+    "rulesetId": 19092134,
+    "requiredChecks": [
+      {
+        "context": "ci",
+        "integration_id": 15368
+      },
+      {
+        "context": "gitleaks",
+        "integration_id": 15368
+      }
+    ],
+    "checkTimeoutMinutes": 30,
+    "seededAt": "2026-11-10T06:10:43Z"
+  }
+}
