@@ -61,16 +61,14 @@
     "requiredChecks": [
       {
         "context": "verify"
-      }
-    ],
-    "checkTimeoutMinutes": 15,
-    "seededAt": "2026-11-10T06:10:40Z",
-    "plannedRequiredChecks": [
+      },
       {
         "context": "gitleaks",
         "integration_id": 15368
       }
-    ]
+    ],
+    "checkTimeoutMinutes": 15,
+    "seededAt": "2026-11-10T06:10:40Z"
   },
   "yesid-dev/yesid.content-contract": {
     "rulesetId": 26915702,
