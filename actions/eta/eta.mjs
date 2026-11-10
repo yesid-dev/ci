@@ -40,25 +40,59 @@ export async function samplesFor(workflow,name,currentId,request=api,repository=
   return samples;
 }
 
-async function main() {
-  const name=process.env.ETA_JOB_NAME;
-  if(!name || !process.env.ETA_COMMAND || !process.env.ETA_BASH) throw new Error('Require job-name, command and Bash executable');
-  const currentRun=await api('actions/runs/'+process.env.GITHUB_RUN_ID);
-  const current=(await pages('actions/runs/'+currentRun.id+'/jobs?filter=latest','jobs')).filter(j=>j.name===name && j.status==='in_progress');
-  if(current.length!==1)throw new Error('Expected exactly one running job named '+name);
-  const samples=await samplesFor(currentRun.workflow_id,name,currentRun.id);
-  let deadline=null;
-  if(!samples.length) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Expected finish: unavailable (no successful main job samples).\n');
-  } else {
-    const start=Date.parse(current[0].started_at);
-    if(!Number.isFinite(start))throw new Error('Invalid current job start time');
-    const p50=percentile(samples,.5); const p90=percentile(samples,.9);
-    deadline=start+p90;
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Expected finish: p50 '+new Date(start+p50).toISOString()+'; p90 '+new Date(deadline).toISOString()+' ('+samples.length+' successful main jobs).\n');
+const unavailable=reason=>'Expected finish: unavailable ('+reason.replace(/[\r\n]/g,' ')+').\n';
+const warnP90=()=>console.log('::warning title=Job exceeds historical p90::Current elapsed time exceeds p90');
+const reportIdentity=({contextId,jobId,runId,attempt})=>console.log('ETA identity verified: job.check_run_id='+contextId+'; jobs API id='+jobId+'; run='+runId+'; attempt='+attempt);
+
+function id(value,label) {
+  if(!/^[1-9]\d*$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Error(label+' unavailable or invalid');
+  return Number(value);
+}
+
+async function estimate(env,request,identity) {
+  const checkId=id(env.ETA_CHECK_RUN_ID,'job.check_run_id');
+  const runId=id(env.GITHUB_RUN_ID,'run ID'); const attempt=id(env.GITHUB_RUN_ATTEMPT,'run attempt');
+  const current=await request('actions/jobs/'+checkId);
+  if(current.id!==checkId || current.run_id!==runId || current.run_attempt!==attempt) throw new Error('current job identity does not match this run attempt');
+  identity({contextId:checkId,jobId:current.id,runId,attempt});
+  if(!env.ETA_JOB_NAME || current.name!==env.ETA_JOB_NAME) throw new Error('configured job-name does not match current job');
+  const start=Date.parse(current.started_at);
+  if(!Number.isFinite(start))throw new Error('current job start time unavailable');
+  const currentRun=await request('actions/runs/'+runId);
+  if(currentRun.id!==runId || !Number.isSafeInteger(currentRun.workflow_id))throw new Error('workflow identity unavailable');
+  const samples=await samplesFor(currentRun.workflow_id,current.name,runId,request,env.GITHUB_REPOSITORY);
+  if(!samples.length)return {summary:unavailable('no successful main job samples'),deadline:null};
+  const p50=percentile(samples,.5); const deadline=start+percentile(samples,.9);
+  return {summary:'Expected finish: p50 '+new Date(start+p50).toISOString()+'; p90 '+new Date(deadline).toISOString()+' ('+samples.length+' successful main jobs).\n',deadline};
+}
+
+export async function runEta({env=process.env,request=api,writeSummary=text=>appendFileSync(env.GITHUB_STEP_SUMMARY,text),execute=runCommand,identity=reportIdentity,warn=warnP90}={}) {
+  if(!env.ETA_COMMAND || !env.ETA_BASH)throw new Error('Require command and Bash executable');
+  const controller=new AbortController();
+  const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]);
+  let finished=false; let published=false; let timer;
+  const publish=text=>{
+    try {writeSummary(text);published=true;} catch {console.error('ETA summary could not be written');}
+  };
+  try {
+    // Start the real command before any telemetry request. Only its result controls the exit code.
+    const completion=execute({executable:env.ETA_BASH,args:['--noprofile','--norc','-e','-o','pipefail','-c',env.ETA_COMMAND],deadline:null});
+    void estimate(env,(endpoint)=>request(endpoint,{signal}),identity).then(result=>{
+      if(finished)return;
+      publish(result.summary);
+      if(result.deadline!==null) {
+        const remaining=result.deadline-Date.now();
+        if(remaining<=0)warn(); else timer=setTimeout(warn,remaining);
+      }
+    }).catch(error=>{
+      if(!finished)publish(unavailable(error instanceof Error?error.message:'ETA metadata unavailable'));
+    });
+    return await completion;
+  } finally {
+    finished=true; clearTimeout(timer); controller.abort();
+    if(!published)publish(unavailable('command completed before ETA metadata was available'));
   }
-  process.exitCode=await runCommand({executable:process.env.ETA_BASH,args:['--noprofile','--norc','-e','-o','pipefail','-c',process.env.ETA_COMMAND],deadline});
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
-  main().catch(error=>{console.error(error.message);process.exitCode=1;});
+  runEta().then(code=>{process.exitCode=code;}).catch(error=>{console.error(error.message);process.exitCode=1;});
 }

@@ -21,6 +21,7 @@ jobs:
         with:
           token: ${{ github.token }}
           job-name: test
+          check-run-id: ${{ job.check_run_id }}
           command: npm run check && npm test
   scan:
     uses: ./.github/workflows/gitleaks.yml
