@@ -27,7 +27,8 @@ verified release; use its resolved SHA in consumers.
   scans the current tree, then the event's commit range (new branches or missing
   push bases use full history). Optional `config` selects the consumer's config.
   The caller needs `contents: read`. Reusable workflows may display the caller
-  job prefix in the UI; keep the called job name `gitleaks` for check contexts.
+  job prefix in the check name. Consumers requiring exactly `gitleaks` should
+  add a job with that name which asserts the reusable scan succeeded.
 
 Rulesets are **not automatically applied**. `rulesets/repos.json` records live
 main ruleset IDs, checks (including app bindings), and queue timeouts, read on

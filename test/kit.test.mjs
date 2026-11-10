@@ -41,3 +41,22 @@ test('artifact deadline is hard, rejects bad limits and propagates API errors',a
   await assert.rejects(awaitArtifact({name:'x',timeoutSeconds:0}),/timeout/);
   await assert.rejects(awaitArtifact({name:'x',timeoutSeconds:2,request:async()=>{throw new Error('403');}}),/403/);
 });
+
+test('artifact lookup reaches subsequent pages before polling again',async()=>{
+  const calls=[];
+  const artifact=await awaitArtifact({name:'sealed-build',timeoutSeconds:2,request:async endpoint=>{
+    calls.push(endpoint);
+    return {artifacts:endpoint.endsWith('page=1')?Array.from({length:100},()=>({name:'other',expired:false})):[{name:'sealed-build',expired:false,id:900}]};
+  }});
+  assert.equal(artifact.id,900);assert.equal(calls.length,2);assert.ok(calls[1].endsWith('page=2'));
+});
+test('artifact API request is aborted at the hard deadline',async()=>{
+  const started=Date.now();
+  await assert.rejects(awaitArtifact({name:'never',timeoutSeconds:1,request:async(endpoint,{signal})=>{
+    await new Promise((resolve,reject)=>{
+      const keepAlive=setTimeout(resolve,10000);
+      signal.addEventListener('abort',()=>{clearTimeout(keepAlive);reject(signal.reason);},{once:true});
+    });
+  }}),{name:'TimeoutError'});
+  assert.ok(Date.now()-started<2500);
+});
